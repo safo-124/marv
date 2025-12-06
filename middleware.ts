@@ -11,6 +11,33 @@ export function middleware(request: NextRequest) {
   let isAdmin = false
   let hospitalSlug: string | null = null
 
+  // List of known root domains (no subdomain extraction needed)
+  const rootDomains = [
+    "localhost",
+    "127.0.0.1",
+    "vercel.app",      // Vercel preview/production domains
+    "marv.com",        // Your production domain
+    "marv.ug",         // Alternative production domain
+  ]
+
+  // Check if this is a root domain (no subdomain)
+  const isRootDomain = rootDomains.some(domain => {
+    // Match exact domain or domain:port
+    if (hostname === domain || hostname.startsWith(`${domain}:`)) {
+      return true
+    }
+    // Match *.vercel.app (like marv-ten.vercel.app) - treat as root
+    if (domain === "vercel.app" && hostname.endsWith(".vercel.app")) {
+      // Check if it's a direct Vercel domain (project-name.vercel.app)
+      const parts = hostname.replace(".vercel.app", "").split(".")
+      // If only one part before vercel.app, it's the main app domain
+      if (parts.length === 1) {
+        return true
+      }
+    }
+    return false
+  })
+
   // Handle localhost for development (e.g., kampala-central.localhost:3000)
   if (hostname.includes("localhost") || hostname.includes("127.0.0.1")) {
     // Check for subdomain.localhost:3000 format
@@ -34,8 +61,8 @@ export function middleware(request: NextRequest) {
         hospitalSlug = subdomain
       }
     }
-  } else {
-    // Production: extract from actual subdomain
+  } else if (!isRootDomain) {
+    // Production with custom domain: extract from actual subdomain
     // Format: subdomain.domain.tld (e.g., admin.marv.com or hospital-slug.marv.com)
     const hostParts = hostname.split(".")
     if (hostParts.length >= 3) {
@@ -48,6 +75,7 @@ export function middleware(request: NextRequest) {
       }
     }
   }
+  // If isRootDomain is true (like marv-ten.vercel.app), we don't extract any subdomain
 
   // Create response with headers for downstream use
   const response = NextResponse.next()
